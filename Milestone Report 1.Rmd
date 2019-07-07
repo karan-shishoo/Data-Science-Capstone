@@ -1,0 +1,201 @@
+---
+title: "Milestone Report 1"
+author: "Karan Shishoo"
+date: "July 7, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/Karan Shishoo/Desktop/Coursera/CAPSTONE/final/en_US")
+library(tm)
+library(ggplot2)
+library(RWeka)
+library(slam)
+```
+
+## Goals of the report
+
+1. Links to an HTML page describing the exploratory analysis of the training data set
+2. Creates a Basic Summary of the three files
+3. Shows Word counts, line counts and basic data tables
+4. Includes basic plots like histogrames to show features of the data
+5. Is brief and consise and in a manner than a non-data scientist manager could appreciate
+
+## Loading and evaluating the data
+
+### Downloading the data
+The data is downloaded from https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip and stored in its own directory from analysis and cleaning
+
+### Ensuring the needed files are present
+The working directory is set in the seup options and here we just ensure that the needed files are present
+
+```{r}
+list.files()
+```
+
+### Loading the data into R
+
+```{r message=FALSE, warning=FALSE}
+con <- file("en_US.news.txt", open="r")
+En_US_News_text <- readLines(con); close(con)
+
+con <- file("en_US.blogs.txt", open="r")
+En_US_blogs_text <- readLines(con); close(con) 
+
+con <- file("en_US.twitter.txt", open="r")
+En_US_Twitter_text <- readLines(con); close(con)
+```
+### Extracting details
+
+```{r}
+statistics<- function(file, lines) {
+    file_size <- file.info(file)[1]/1024^2
+    nchars <- lapply(lines, nchar)
+    maxchars <- which.max(nchars)
+    word_count <- sum(sapply(strsplit(lines, "\\s+"), length))
+    return(c(file, format(round(as.double(file_size), 2), nsmall=2), length(lines),maxchars, word_count))
+}
+
+En_US_News_stat<- statistics("en_US.news.txt", En_US_News_text)
+En_US_Blogs_stat <- statistics("en_US.blogs.txt", En_US_blogs_text)
+En_US_Twitter_stat<- statistics("en_US.twitter.txt", En_US_Twitter_text)
+
+total_summary <- c(En_US_News_stat, En_US_Blogs_stat,En_US_Twitter_stat)
+df <- data.frame(matrix(unlist(total_summary), nrow=3, byrow=T))
+    colnames(df) <- c("Text_file", "Size(MB)", "Line_Count", "Max Line Length", "Words_Count")
+df
+```
+
+### Exploratory analysis setup
+
+```{r}
+make_Corpus<- function(file) {
+    gen_corp<- paste(file, collapse=" ")
+    gen_corp <- VectorSource(gen_corp)
+    gen_corp <- Corpus(gen_corp)
+}
+
+
+clean_corp <- function(corp_data) {
+    corp_data <- tm_map(corp_data, removeNumbers)
+    corp_data <- tm_map(corp_data, content_transformer(tolower))
+    corp_data <- tm_map(corp_data, removeWords, stopwords("english"))
+    corp_data <- tm_map(corp_data, removePunctuation)
+    corp_data <- tm_map(corp_data, stripWhitespace)
+    return (corp_data)
+}
+
+high_freq_words <- function (corp_data) {
+    term_sparse <- DocumentTermMatrix(corp_data)
+    term_matrix <- as.matrix(term_sparse)
+    freq_words <- colSums(term_matrix)
+    freq_words <- as.data.frame(sort(freq_words, decreasing=TRUE))
+    freq_words$word <- rownames(freq_words)
+    colnames(freq_words) <- c("Frequency","word")
+    return (freq_words)
+}
+```
+### Histogram of high frequency words for US News
+```{r echo=FALSE, results="hide", warning=FALSE}
+En_US_News_text1<-sample(En_US_News_text, round(0.01*length(En_US_News_text)), replace = F)
+    US_news_corpus <- VCorpus(VectorSource(En_US_News_text1))
+    US_news_corpus <- clean_corp(US_news_corpus)
+    US_news_most_used_word <- high_freq_words(US_news_corpus)
+    US_news_most_used_word1<- US_news_most_used_word[1:15,]
+
+    p<-ggplot(data=US_news_most_used_word1, aes(x=reorder(word,Frequency), y=Frequency,
+                    fill=factor(reorder(word,-Frequency))))+ geom_bar(stat="identity") 
+    p + xlab("Word") +labs(title = "Most Frequent words : US News") +theme(legend.title=element_blank()) + coord_flip()
+```
+
+### Histogram of high frequency words for US Blogs
+
+```{r echo=FALSE, results="hide", warning=FALSE}
+En_US_blogs_text1<-sample(En_US_blogs_text, round(0.01*length(En_US_blogs_text)), replace = F)
+    US_blogs_corpus <- VCorpus(VectorSource(En_US_blogs_text1))
+    US_blogs_corpus <- clean_corp(US_blogs_corpus)
+    US_blogs_most_used_word <- high_freq_words(US_blogs_corpus)
+    US_blogs_most_used_word1<- US_blogs_most_used_word[1:15,]
+
+    p<-ggplot(data=US_blogs_most_used_word1, aes(x=reorder(word,Frequency), y=Frequency,
+                    fill=factor(reorder(word,-Frequency))))+ geom_bar(stat="identity") 
+    p + xlab("Word") +labs(title = "Most Frequent words : US blogs") +theme(legend.title=element_blank()) + coord_flip()
+```
+
+### Histogram of high frequency words for US Twitter
+
+```{r echo=FALSE, results="hide", warning=FALSE}
+    En_US_Twitter_text1<-sample(En_US_Twitter_text, round(0.01*length(En_US_Twitter_text)), replace = F)
+    twitter_corpus <- VCorpus(VectorSource(En_US_Twitter_text1))
+    twitter_corpus <- clean_corp(twitter_corpus)
+    twitter_most_used_word <- high_freq_words(twitter_corpus)
+    twitter_most_used_word1<- twitter_most_used_word[1:15,]
+    
+    p<-ggplot(data=twitter_most_used_word1, aes(x=reorder(word,Frequency), y=Frequency,
+                    fill=factor(reorder(word,-Frequency))))+ geom_bar(stat="identity") 
+    p + xlab("Word") +labs(title = "Most Frequent words : Twitter") +theme(legend.title=element_blank()) + coord_flip()
+```
+
+## Word Analysis
+To make the most accurate models we would need to create a bag of words matrix with unigrams, bigrams and trigrams. Using these N-gram sets we can improve the accuracy of our predictions. Due to the large size of the data only a small portion of it is analysed for N-grams (1% since thats all my PC could handle)
+
+### N-grams setup
+```{r}
+n_grams_plot <- function(n, data) {
+  options(mc.cores=1)
+  
+  # Builds n-gram tokenizer 
+  tk <- function(x) NGramTokenizer(x, Weka_control(min = n, max = n))
+  # Create matrix
+  ngrams_matrix <- TermDocumentMatrix(data, control=list(tokenize=tk))
+  # make matrix for easy view
+  ngrams_matrix <- as.matrix(rollup(ngrams_matrix, 2, na.rm=TRUE, FUN=sum))
+  ngrams_matrix <- data.frame(word=rownames(ngrams_matrix), freq=ngrams_matrix[,1])
+  # find 20 most frequent n-grams in the matrix
+  ngrams_matrix <- ngrams_matrix[order(-ngrams_matrix$freq), ][1:20, ]
+  ngrams_matrix$word <- factor(ngrams_matrix$word, as.character(ngrams_matrix$word))
+  
+  # plots
+  ggplot(ngrams_matrix, aes(x=word, y=freq)) + 
+    geom_bar(stat="Identity") + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("n-grams") + 
+    ylab("Frequency")
+}
+```
+
+### Unigrams
+```{r}
+n_grams_plot(1, US_news_corpus)
+n_grams_plot(1, US_blogs_corpus)
+n_grams_plot(1, twitter_corpus)
+```
+
+
+### Bi-Grams
+```{r}
+n_grams_plot(2, US_news_corpus)
+n_grams_plot(2, US_blogs_corpus)
+n_grams_plot(2, twitter_corpus)
+```
+
+###Tri-Grams
+```{r}
+n_grams_plot(3, US_news_corpus)
+n_grams_plot(3, US_blogs_corpus)
+n_grams_plot(3, twitter_corpus)
+```
+
+
+## Interesting findings
+There are some overlaps between the n-grams of the different sources but not as many as would be expected. One makjor standout is that in the news data set trigrams seem to be generally unique with low frequency while in comparison both blogs and tweets have a high frequency of certain trigrams.
+
+The format of word groups from each set is very different, thus if we could identify the context in which we were predicting the next word we could easily improve the accuraccy and speed of our predictions. 
+
+
+## Future Plans
+The current plan to develop the shiney app is to use these N-grams to develop a a model that provides the most probable next word by looking at freqency of certain N-grams and weighing how likely a trigram would be over a bigram (for example "happy mothers" would most likely be followed by "day" but a simple "mothers" would not)
+
+
+
+
